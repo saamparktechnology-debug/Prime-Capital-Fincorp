@@ -47,6 +47,8 @@ export const ENDPOINTS = {
     CREATE: "/loans",
     UPDATE: (loanId: number | string) => `/loans/${loanId}`,
     UPDATE_STATUS: (loanId: number | string) => `/loans/${loanId}/status`,
+    BANK_STATEMENT_PASSWORD: (loanId: number | string) =>
+      `/loans/${loanId}/bank-statement-password`,
   },
   DEMAT: {
     BANKS: {

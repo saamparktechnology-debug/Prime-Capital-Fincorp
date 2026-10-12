@@ -1,4 +1,3 @@
-// modules/loans/hooks/useLoanDocuments.ts
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -41,6 +40,23 @@ export function useDeleteLoanDocument(loanId: number | string | undefined) {
       loanDocumentService.remove(loanId!, docType),
     onSuccess: () => {
       toast.success("Document removed.");
+      if (loanId) {
+        qc.invalidateQueries({ queryKey: loanDocKeys.checklist(loanId) });
+      }
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
+}
+
+export function useSetBankStatementPassword(
+  loanId: number | string | undefined,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (password: string | null) =>
+      loanDocumentService.setBankStatementPassword(loanId!, password),
+    onSuccess: () => {
+      toast.success("Bank statement password updated.");
       if (loanId) {
         qc.invalidateQueries({ queryKey: loanDocKeys.checklist(loanId) });
       }

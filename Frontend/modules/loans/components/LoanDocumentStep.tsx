@@ -22,6 +22,7 @@ const REQUIRED_DOC_TYPES = [
   "aadhaar_back",
   "pan",
   "business_reg",
+  "udyam",
   "bank_statement",
 ];
 
@@ -93,7 +94,6 @@ export function LoanDocumentStep({
     checklist.find((d) => d.doc_type === "aadhaar")?.uploaded,
   );
 
-  /** Whether a given doc is currently allowed to receive an upload */
   const isDocUnlocked = (docType: string) => {
     if (docType === "aadhaar_back") return aadhaarFrontUploaded;
     return true;
@@ -101,7 +101,6 @@ export function LoanDocumentStep({
 
   return (
     <div className="space-y-6">
-      {/* Header card */}
       <Card className="border-blue-500/30">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
@@ -143,6 +142,7 @@ export function LoanDocumentStep({
               <LoanDocumentUploadCard
                 item={item}
                 index={i}
+                loanId={loanId}
                 onUpload={(file) => handleUpload(item.doc_type, file)}
                 onRemove={() => handleRemove(item.doc_type)}
                 uploading={uploadingType === item.doc_type}
@@ -178,6 +178,7 @@ export function LoanDocumentStep({
               key={item.doc_type}
               item={item}
               index={requiredDocs.length + i}
+              loanId={loanId}
               onUpload={(file) => handleUpload(item.doc_type, file)}
               onRemove={() => handleRemove(item.doc_type)}
               uploading={uploadingType === item.doc_type}
@@ -187,7 +188,6 @@ export function LoanDocumentStep({
         </div>
       )}
 
-      {/* Bottom status card */}
       <Card
         className={cn(
           "border-2",

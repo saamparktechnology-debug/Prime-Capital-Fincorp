@@ -34,6 +34,9 @@ export interface Loan {
   nominee_relationship?: string | null;
   nominee_phone?: string | null;
 
+  udyam_doc_path?: string | null;
+  bank_statement_password?: string | null;
+
   requested_amount: number;
   approved_amount?: number | null;
   tenure_months: number;

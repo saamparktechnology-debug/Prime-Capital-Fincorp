@@ -10,6 +10,7 @@ const DOC_FIELD_MAP = {
   aadhaar_back: "aadhaar_back_doc_path",
   pan: "pan_doc_path",
   business_reg: "business_reg_doc_path",
+  udyam: "udyam_doc_path",
   bank_statement: "bank_statement_doc_path",
   nominee: "nominee_doc_path",
 };
@@ -19,6 +20,7 @@ const DOC_LABELS = {
   aadhaar_back: "Aadhaar Card (Back)",
   pan: "PAN Card",
   business_reg: "Business Registration Proof",
+  udyam: "Udyam Certificate",
   bank_statement: "Bank Statement 1 Year",
   nominee: "Nominee Document",
 };
@@ -245,10 +247,17 @@ const getDocumentChecklist = async (req, res) => {
         uploaded: Boolean(loan.business_reg_doc_path),
       },
       {
+        doc_type: "udyam",
+        label: "Udyam Certificate",
+        path: loan.udyam_doc_path,
+        uploaded: Boolean(loan.udyam_doc_path),
+      },
+      {
         doc_type: "bank_statement",
         label: "Bank Statement 1 Year",
         path: loan.bank_statement_doc_path,
         uploaded: Boolean(loan.bank_statement_doc_path),
+        password: loan.bank_statement_password || null,
       },
       {
         doc_type: "nominee",
@@ -280,8 +289,64 @@ const getDocumentChecklist = async (req, res) => {
   }
 };
 
+const updateBankStatementPassword = async (req, res) => {
+  const { loanId } = req.params;
+  const { password } = req.body;
+
+  try {
+    const loan = await LoanModel.findById(loanId);
+    if (!loan) {
+      return res
+        .status(404)
+        .json({ status: "fail", message: "Loan not found." });
+    }
+
+    if (req.user.role === "agent" && loan.agent_id !== req.user.id) {
+      return res.status(403).json({ status: "fail", message: "Unauthorized." });
+    }
+
+    const allowed = ["Draft", "Applied", "Under Review"];
+    if (!allowed.includes(loan.loan_status)) {
+      return res.status(400).json({
+        status: "fail",
+        message: `Cannot modify documents at status '${loan.loan_status}'.`,
+      });
+    }
+
+    // Empty string → clear the password
+    const cleanPassword =
+      typeof password === "string" && password.trim().length > 0
+        ? password.trim()
+        : null;
+
+    await LoanModel.updateBankStatementPassword(loanId, cleanPassword);
+
+    audit(
+      req,
+      "update_bank_password",
+      "loan_document",
+      Number(loanId),
+      { had_password: Boolean(loan.bank_statement_password) },
+      { had_password: Boolean(cleanPassword) },
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: cleanPassword
+        ? "Bank statement password saved."
+        : "Bank statement password cleared.",
+    });
+  } catch (error) {
+    console.error("Update Bank Statement Password Error:", error);
+    return res
+      .status(500)
+      .json({ status: "error", message: "Internal server error." });
+  }
+};
+
 module.exports = {
   uploadLoanDocument,
   deleteLoanDocument,
   getDocumentChecklist,
+  updateBankStatementPassword,
 };

@@ -19,6 +19,7 @@ const {
   uploadLoanDocument,
   deleteLoanDocument,
   getDocumentChecklist,
+  updateBankStatementPassword,
 } = require("../controllers/loanDocumentController");
 
 router.use(authenticateToken);
@@ -38,5 +39,7 @@ router.post(
   uploadLoanDocument,
 );
 router.delete("/:loanId/documents/:docType", deleteLoanDocument);
+
+router.patch("/:loanId/bank-statement-password", updateBankStatementPassword);
 
 module.exports = router;

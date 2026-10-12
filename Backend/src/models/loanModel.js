@@ -209,6 +209,7 @@ const LoanModel = {
       "aadhaar_back_doc_path",
       "pan_doc_path",
       "business_reg_doc_path",
+      "udyam_doc_path",
       "bank_statement_doc_path",
       "nominee_doc_path",
     ];
@@ -217,6 +218,14 @@ const LoanModel = {
     const [result] = await pool.query(
       `UPDATE loans SET ${docField} = ? WHERE loan_id = ?`,
       [path, loanId],
+    );
+    return result.affectedRows > 0;
+  },
+
+  async updateBankStatementPassword(loanId, password) {
+    const [result] = await pool.query(
+      "UPDATE loans SET bank_statement_password = ? WHERE loan_id = ?",
+      [password, loanId],
     );
     return result.affectedRows > 0;
   },

@@ -1,19 +1,24 @@
-// modules/loans/services/loanDocumentService.ts
 import { api, unwrap } from "@/lib/api/client";
+import { ENDPOINTS } from "@/lib/api/endpoints";
 
 const LOANS_BASE = "/loans";
 
+export type LoanDocType =
+  | "aadhaar"
+  | "aadhaar_back"
+  | "pan"
+  | "business_reg"
+  | "udyam"
+  | "bank_statement"
+  | "nominee";
+
 export interface DocumentChecklistItem {
-  doc_type:
-    | "aadhaar"
-    | "aadhaar_back"
-    | "pan"
-    | "business_reg"
-    | "bank_statement"
-    | "nominee";
+  doc_type: LoanDocType;
   label: string;
   path: string | null;
   uploaded: boolean;
+  /** Only present for bank_statement */
+  password?: string | null;
 }
 
 export interface DocumentChecklist {
@@ -49,5 +54,14 @@ export const loanDocumentService = {
 
   async remove(loanId: number | string, docType: string): Promise<void> {
     await api.delete(`${LOANS_BASE}/${loanId}/documents/${docType}`);
+  },
+
+  async setBankStatementPassword(
+    loanId: number | string,
+    password: string | null,
+  ): Promise<void> {
+    await api.patch(ENDPOINTS.LOANS.BANK_STATEMENT_PASSWORD(loanId), {
+      password,
+    });
   },
 };

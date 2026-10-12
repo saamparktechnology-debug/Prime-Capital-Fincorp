@@ -1,12 +1,18 @@
-//Frontend/modules/loans/LoanDetail.tsx
-
 "use client";
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { FileText, ExternalLink, Upload, Trash2, Loader2 } from "lucide-react";
+import {
+  FileText,
+  ExternalLink,
+  Upload,
+  Trash2,
+  Loader2,
+  KeyRound,
+  Lock,
+} from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/PageHeader";
@@ -14,6 +20,7 @@ import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
 
@@ -32,6 +39,7 @@ import {
   useLoanDocumentChecklist,
   useUploadLoanDocument,
   useDeleteLoanDocument,
+  useSetBankStatementPassword,
 } from "./hooks/useLoanDocuments";
 import { LoanStatusTimeline } from "./components/LoanStatusTimeline";
 import { EMIScheduleTable } from "./components/EMIScheduleTable";
@@ -40,9 +48,7 @@ import type { Loan } from "./types";
 
 const isBusinessType = (t: string) => t === "Business" || t === "Business Loan";
 
-/** Statuses in which the backend allows document mutations */
 const EDITABLE_STATUSES = ["Draft", "Applied", "Under Review"];
-
 const MAX_SIZE_MB = 5;
 const ACCEPTED = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
 
@@ -54,17 +60,19 @@ export default function LoanDetail() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const qc = useQueryClient();
 
-  // ---- ALL HOOKS MUST RUN UNCONDITIONALLY ----
   const { data: loans, isLoading } = useLoansList();
   const loan = loans?.find((l) => l.loan_id === id);
   const { data: emis } = useEmisByLoan(id);
 
   const isBusiness = loan ? isBusinessType(loan.loan_type) : false;
 
-  // Document checklist — only relevant for Business loans
   const checklistQ = useLoanDocumentChecklist(isBusiness ? id : undefined);
   const uploadM = useUploadLoanDocument(id);
   const deleteM = useDeleteLoanDocument(id);
+  const passwordM = useSetBankStatementPassword(id);
+
+  const [bsPassword, setBsPassword] = useState<string>("");
+  const [bsPasswordDirty, setBsPasswordDirty] = useState(false);
 
   const generateM = useMutation({
     mutationFn: async () => {
@@ -79,7 +87,6 @@ export default function LoanDetail() {
     onError: (err) => toast.error(getErrorMessage(err)),
   });
 
-  // ---- Early returns ----
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -113,47 +120,67 @@ export default function LoanDetail() {
 
   const displayName = loan.customer_full_name || `Loan #${loan.loan_id}`;
 
-  // When the checklist hasn't loaded yet, fall back to the loan's own *_doc_path fields
-  const docItems = checklistQ.data?.checklist ?? [
-    {
-      doc_type: "aadhaar",
-      label: "Aadhaar Card (Front)",
-      path: loan.aadhaar_doc_path,
-      uploaded: Boolean(loan.aadhaar_doc_path),
-    },
-    {
-      doc_type: "aadhaar_back",
-      label: "Aadhaar Card (Back)",
-      path: loan.aadhaar_back_doc_path,
-      uploaded: Boolean(loan.aadhaar_back_doc_path),
-    },
-    {
-      doc_type: "pan",
-      label: "PAN Card",
-      path: loan.pan_doc_path,
-      uploaded: Boolean(loan.pan_doc_path),
-    },
-    {
-      doc_type: "business_reg",
-      label: "Business Registration Proof/Uddyam",
-      path: loan.business_reg_doc_path,
-      uploaded: Boolean(loan.business_reg_doc_path),
-    },
-    {
-      doc_type: "bank_statement",
-      label: "Bank Statement (1 Year)",
-      path: loan.bank_statement_doc_path,
-      uploaded: Boolean(loan.bank_statement_doc_path),
-    },
-    {
-      doc_type: "nominee",
-      label: "Nominee Document",
-      path: loan.nominee_doc_path,
-      uploaded: Boolean(loan.nominee_doc_path),
-    },
-  ];
+  const docItems =
+    checklistQ.data?.checklist ??
+    ([
+      {
+        doc_type: "aadhaar",
+        label: "Aadhaar Card (Front)",
+        path: loan.aadhaar_doc_path,
+        uploaded: Boolean(loan.aadhaar_doc_path),
+      },
+      {
+        doc_type: "aadhaar_back",
+        label: "Aadhaar Card (Back)",
+        path: loan.aadhaar_back_doc_path,
+        uploaded: Boolean(loan.aadhaar_back_doc_path),
+      },
+      {
+        doc_type: "pan",
+        label: "PAN Card",
+        path: loan.pan_doc_path,
+        uploaded: Boolean(loan.pan_doc_path),
+      },
+      {
+        doc_type: "business_reg",
+        label: "Business Registration Proof",
+        path: loan.business_reg_doc_path,
+        uploaded: Boolean(loan.business_reg_doc_path),
+      },
+      {
+        doc_type: "udyam",
+        label: "Udyam Certificate",
+        path: loan.udyam_doc_path,
+        uploaded: Boolean(loan.udyam_doc_path),
+      },
+      {
+        doc_type: "bank_statement",
+        label: "Bank Statement (1 Year)",
+        path: loan.bank_statement_doc_path,
+        uploaded: Boolean(loan.bank_statement_doc_path),
+      },
+      {
+        doc_type: "nominee",
+        label: "Nominee Document",
+        path: loan.nominee_doc_path,
+        uploaded: Boolean(loan.nominee_doc_path),
+      },
+    ] as any);
 
-  const uploadedCount = docItems.filter((d) => d.uploaded).length;
+  const uploadedCount = docItems.filter((d: any) => d.uploaded).length;
+
+  // Sync password field from the checklist once it loads
+  if (
+    !bsPasswordDirty &&
+    checklistQ.data &&
+    checklistQ.data.checklist.find((d) => d.doc_type === "bank_statement")
+      ?.password !== undefined
+  ) {
+    const serverPwd =
+      checklistQ.data.checklist.find((d) => d.doc_type === "bank_statement")
+        ?.password ?? "";
+    if (serverPwd !== bsPassword) setBsPassword(serverPwd);
+  }
 
   const handleFile = (docType: string, file: File | null) => {
     if (!file) return;
@@ -176,7 +203,6 @@ export default function LoanDetail() {
         action={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={loan.loan_status} />
-
             {canGenerateEmis && (
               <Button
                 variant="outline"
@@ -186,7 +212,6 @@ export default function LoanDetail() {
                 {generateM.isPending ? "Generating..." : "Generate EMIs"}
               </Button>
             )}
-
             {isAdmin && (
               <Button onClick={() => setStatusOpen(true)}>Update Status</Button>
             )}
@@ -195,7 +220,6 @@ export default function LoanDetail() {
       />
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left: customer info + timeline */}
         <div className="lg:col-span-1 space-y-6">
           <Card>
             <CardHeader className="pb-3">
@@ -228,7 +252,6 @@ export default function LoanDetail() {
           </Card>
         </div>
 
-        {/* Right: details + documents + EMI schedule */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader className="pb-3">
@@ -289,7 +312,6 @@ export default function LoanDetail() {
             </CardContent>
           </Card>
 
-          {/* Nominee — Business loans only */}
           {isBusiness && (
             <Card>
               <CardHeader className="pb-3">
@@ -303,7 +325,6 @@ export default function LoanDetail() {
             </Card>
           )}
 
-          {/* ---------- Documents (Business loans only) ---------- */}
           {isBusiness && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -324,126 +345,191 @@ export default function LoanDetail() {
               </CardHeader>
               <CardContent>
                 <ul className="divide-y">
-                  {docItems.map((doc) => {
+                  {docItems.map((doc: any) => {
                     const url = documentUrl(doc.path);
                     const isUploading =
                       uploadM.isPending &&
                       uploadM.variables?.docType === doc.doc_type;
                     const isDeleting =
                       deleteM.isPending && deleteM.variables === doc.doc_type;
+                    const isBankStatement = doc.doc_type === "bank_statement";
 
                     return (
                       <li
                         key={doc.doc_type}
-                        className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center"
+                        className="flex flex-col gap-3 py-3"
                       >
-                        <div
-                          className={
-                            doc.uploaded
-                              ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600"
-                              : "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
-                          }
-                        >
-                          <FileText className="h-5 w-5" />
-                        </div>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                          <div
+                            className={
+                              doc.uploaded
+                                ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600"
+                                : "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground"
+                            }
+                          >
+                            <FileText className="h-5 w-5" />
+                          </div>
 
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {doc.label}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {doc.uploaded
-                              ? doc.path!.split("/").pop()
-                              : "Not uploaded"}
-                          </p>
-                        </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">
+                              {doc.label}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {doc.uploaded
+                                ? doc.path!.split("/").pop()
+                                : "Not uploaded"}
+                            </p>
+                          </div>
 
-                        <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
-                          {doc.uploaded ? (
-                            <Badge
-                              variant="outline"
-                              className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                            >
-                              UPLOADED
-                            </Badge>
-                          ) : (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                            >
-                              PENDING
-                            </Badge>
-                          )}
-
-                          {doc.uploaded && url && (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-                              aria-label={`View ${doc.label}`}
-                              title="View"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          )}
-
-                          {canEditDocuments && (
-                            <>
-                              <label
-                                className={
-                                  "flex h-8 cursor-pointer items-center justify-center rounded-md px-3 text-xs font-medium transition-colors " +
-                                  (isUploading
-                                    ? "bg-muted text-muted-foreground"
-                                    : "text-blue-600 hover:bg-blue-500/10 dark:text-blue-400")
-                                }
-                                title={doc.uploaded ? "Replace" : "Upload"}
+                          <div className="flex shrink-0 items-center gap-1 self-end sm:self-auto">
+                            {doc.uploaded ? (
+                              <Badge
+                                variant="outline"
+                                className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                               >
-                                {isUploading ? (
-                                  <>
-                                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                                    Uploading...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Upload className="mr-1.5 h-3.5 w-3.5" />
-                                    {doc.uploaded ? "Replace" : "Upload"}
-                                  </>
-                                )}
-                                <input
-                                  type="file"
-                                  accept=".pdf,.jpg,.jpeg,.png"
-                                  className="hidden"
-                                  disabled={isUploading}
-                                  onChange={(e) => {
-                                    handleFile(
-                                      doc.doc_type,
-                                      e.target.files?.[0] ?? null,
-                                    );
-                                    e.target.value = "";
-                                  }}
-                                />
-                              </label>
+                                UPLOADED
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                              >
+                                PENDING
+                              </Badge>
+                            )}
 
-                              {doc.uploaded && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-destructive hover:text-destructive"
-                                  onClick={() => setDeleteTarget(doc.doc_type)}
-                                  disabled={isDeleting}
-                                  title="Remove"
+                            {doc.uploaded && url && (
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                                title="View"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            )}
+
+                            {canEditDocuments && (
+                              <>
+                                <label
+                                  className={
+                                    "flex h-8 cursor-pointer items-center justify-center rounded-md px-3 text-xs font-medium transition-colors " +
+                                    (isUploading
+                                      ? "bg-muted text-muted-foreground"
+                                      : "text-blue-600 hover:bg-blue-500/10 dark:text-blue-400")
+                                  }
+                                  title={doc.uploaded ? "Replace" : "Upload"}
                                 >
-                                  {isDeleting ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  {isUploading ? (
+                                    <>
+                                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                      Uploading...
+                                    </>
                                   ) : (
-                                    <Trash2 className="h-4 w-4" />
+                                    <>
+                                      <Upload className="mr-1.5 h-3.5 w-3.5" />
+                                      {doc.uploaded ? "Replace" : "Upload"}
+                                    </>
                                   )}
-                                </Button>
-                              )}
-                            </>
-                          )}
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    className="hidden"
+                                    disabled={isUploading}
+                                    onChange={(e) => {
+                                      handleFile(
+                                        doc.doc_type,
+                                        e.target.files?.[0] ?? null,
+                                      );
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                </label>
+
+                                {doc.uploaded && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive"
+                                    onClick={() =>
+                                      setDeleteTarget(doc.doc_type)
+                                    }
+                                    disabled={isDeleting}
+                                    title="Remove"
+                                  >
+                                    {isDeleting ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Bank statement password row */}
+                        {isBankStatement && (
+                          <div className="ml-0 border-t pt-3 sm:ml-[52px]">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <KeyRound className="h-3.5 w-3.5" />
+                                <span>PDF password (optional)</span>
+                              </div>
+
+                              <div className="flex flex-1 items-center gap-2">
+                                <Input
+                                  type="text"
+                                  placeholder="e.g., DOB in DDMMYYYY or PAN"
+                                  value={bsPassword}
+                                  onChange={(e) => {
+                                    setBsPassword(e.target.value);
+                                    setBsPasswordDirty(true);
+                                  }}
+                                  disabled={!canEditDocuments}
+                                  className="h-8 max-w-xs text-xs"
+                                />
+
+                                {canEditDocuments && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8"
+                                    onClick={() => {
+                                      const v = bsPassword.trim();
+                                      passwordM.mutate(v.length ? v : null, {
+                                        onSuccess: () =>
+                                          setBsPasswordDirty(false),
+                                      });
+                                    }}
+                                    disabled={
+                                      !bsPasswordDirty || passwordM.isPending
+                                    }
+                                  >
+                                    {passwordM.isPending ? (
+                                      <>
+                                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                                        Saving...
+                                      </>
+                                    ) : (
+                                      "Save"
+                                    )}
+                                  </Button>
+                                )}
+
+                                {doc.password && !bsPasswordDirty && (
+                                  <span className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                                    <Lock className="h-3 w-3" />
+                                    Saved
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </li>
                     );
                   })}
